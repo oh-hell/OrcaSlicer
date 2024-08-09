@@ -1354,7 +1354,7 @@ void Sidebar::update_presets(Preset::Type preset_type)
         for (size_t i = 0; i < filament_cnt; i++)
             p->combos_filament[i]->update();
 
-        dynamic_filament_list.update();
+        update_dynamic_filament_list();
         break;
     }
 
@@ -1637,7 +1637,7 @@ void Sidebar::on_filaments_change(size_t num_filaments)
     Layout();
     p->m_panel_filament_title->Refresh();
     update_ui_from_settings();
-    dynamic_filament_list.update();
+    update_dynamic_filament_list();
 }
 
 void Sidebar::add_filament() {
@@ -1818,7 +1818,7 @@ void Sidebar::sync_ams_list()
         c->update();
     wxGetApp().get_tab(Preset::TYPE_FILAMENT)->select_preset(wxGetApp().preset_bundle->filament_presets[0]);
     wxGetApp().preset_bundle->export_selections(*wxGetApp().app_config);
-    dynamic_filament_list.update();
+    update_dynamic_filament_list();
     // Expand filament list
     p->m_panel_filament_content->SetMaxSize({-1, -1});
     // BBS:Synchronized consumables information
@@ -1852,6 +1852,12 @@ void Sidebar::show_SEMM_buttons(bool bshow)
     if (p->m_flushing_volume_btn)
         p->m_flushing_volume_btn->Show(bshow);
     Layout();
+}
+
+void Sidebar::update_dynamic_filament_list()
+{
+    dynamic_filament_list.update();
+    dynamic_filament_list_1_based.update();
 }
 
 ObjectList* Sidebar::obj_list()
@@ -2436,6 +2442,7 @@ struct Plater::priv
     void delete_all_objects_from_model();
     void reset(bool apply_presets_change = false);
     void center_selection();
+    void drop_selection();
     void mirror(Axis axis);
     void split_object();
     void split_volume();
@@ -5022,6 +5029,11 @@ void Plater::priv::center_selection()
     view3D->center_selected();
 }
 
+void Plater::priv::drop_selection()
+{
+    view3D->drop_selected();
+}
+
 void Plater::priv::mirror(Axis axis)
 {
     view3D->mirror_selection(axis);
@@ -6529,7 +6541,7 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
         wxGetApp().preset_bundle->set_filament_preset(idx, preset_name);
         wxGetApp().plater()->update_project_dirty_from_presets();
         wxGetApp().preset_bundle->export_selections(*wxGetApp().app_config);
-        dynamic_filament_list.update();
+        sidebar->update_dynamic_filament_list();
         bool flag_is_change = is_support_filament(idx);
         if (flag != flag_is_change) {
             sidebar->auto_calc_flushing_volumes(idx);
@@ -12788,7 +12800,7 @@ void Plater::on_config_change(const DynamicPrintConfig &config)
 
             if (update_filament_colors_in_full_config()) {
                 p->sidebar->obj_list()->update_filament_colors();
-                dynamic_filament_list.update();
+                p->sidebar->update_dynamic_filament_list();
                 continue;
             }
         }
@@ -12845,9 +12857,9 @@ void Plater::on_config_change(const DynamicPrintConfig &config)
             bed_shape_changed = true;
             update_scheduled = true;
         }
-        // BBS
-        else if (opt_key == "support_interface_filament" ||
-            opt_key == "support_filament") {
+        // Orca: update when *_filament changed
+        else if (opt_key == "support_interface_filament" || opt_key == "support_filament" || opt_key == "wall_filament" ||
+                 opt_key == "sparse_infill_filament" || opt_key == "solid_infill_filament") {
             update_scheduled = true;
         }
     }
@@ -13239,6 +13251,7 @@ void Plater::suppress_background_process(const bool stop_background_process)
 }
 
 void Plater::center_selection()     { p->center_selection(); }
+void Plater::drop_selection()       { p->drop_selection(); }
 void Plater::mirror(Axis axis)      { p->mirror(axis); }
 void Plater::split_object()         { p->split_object(); }
 void Plater::split_volume()         { p->split_volume(); }
